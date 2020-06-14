@@ -9,7 +9,7 @@ const functions = require('firebase-functions');
 
 const admin = require('firebase-admin');
 admin.initializeApp();
-
+const db = admin.firestore()
 
 exports.getServerTime = functions.https.onCall((data,context)=>{
     console.log("new request to get server date name " +data.name);
@@ -27,7 +27,10 @@ exports.getServerTime = functions.https.onCall((data,context)=>{
     });
 
 
-    exports.createNotificationForFacturation = functions.firestore
+    /** 
+     * Fonction utilisée pour les notifications
+     */
+  exports.createNotificationForFacturation = functions.firestore
   .document('ADHERENTS/{userId}/NEW_FACTURATIONS_ADHERENT/{facturationId}')
   .onCreate((snap, context) => { 
 
@@ -36,9 +39,9 @@ exports.getServerTime = functions.https.onCall((data,context)=>{
       const newValue = snap.data();
 
       // access to the userId
-      var userId = snap.ref.parent.parent.id;
-
-      console.log('UserId = '+userId); 
+      //var userId = snap.ref.parent.parent.id;
+      var userId = snap.data().idAdherent;
+      console.log('UserId = '+userId);
 
       notificationKey = userId.substring(1);
       console.log('notification key = '+notificationKey); 
@@ -47,11 +50,6 @@ exports.getServerTime = functions.https.onCall((data,context)=>{
       // access a particular field as you would any JS property
       const numeroTrimestre = newValue.numeroTrimestrielleFacture;
       const montant = newValue.montant
-
-      //si le message ne viens pas de la dashborad on ne fais rien
-      if(newValue.fromDashboard === false){
-          return;
-      }
 
       const payload = {
         data:{
@@ -68,6 +66,131 @@ exports.getServerTime = functions.https.onCall((data,context)=>{
         
    }
 
+   });
+
+
+    /** 
+     * Utiliser pour
+     * comptabiliser les paiements éffectuer par les utilisateur 
+     * qui ont créer leur compte par le biais d'un lien de partage
+     */
+  exports.manageAccountCreatedViaInvitationCreation = functions.firestore
+  .document('ADHERENTS/{userId}/NEW_FACTURATIONS_ADHERENT/{facturationId}')
+  .onCreate((snap, context) => { 
+
+     // Get an object representing the document
+      // e.g. {'name': 'Marie', 'age': 66}
+      const newValue = snap.data();
+
+      // access to the userId
+      //var userId = snap.ref.parent.parent.id;
+      var userId = snap.data().idAdherent;
+      console.log('UserId = '+userId); 
+
+      /* on vérifie si l'utilisateur a créer son compte à l'issue d'une invitation
+      afin de mentionner que ce dernier a effectuer le paiement
+       */
+      return db.collection("COMPTES_CREER_VIA_INVITATION")
+        .doc(userId)
+        .get()
+        .then(doc => {
+
+          // l'utilisateur a un compte créer via invitation de lien dynamique, 
+          if (!doc.exists) {
+            console.log('No such document for update paiement');
+            return true
+          } else {
+            console.log('Document data:', doc.data());
+
+
+            var isFacturationValider = snap.data().etatValider
+            if(isFacturationValider){//si le paiement a été effctué
+                // on doit mentionner que ce dernier vient de faire un paiement
+                var docInfo = db.collection("COMPTES_CREER_VIA_INVITATION")
+                .doc(userId)
+
+                var docMerge = docInfo.set({
+                  firstPaiementProceded :true
+                }, { merge: true}).then(function() {
+                  console.log("Enregistrement du paiement éffectué avec succes...");
+                  return true
+                }).catch(err => {
+                  console.log(err)
+                  return false
+                });
+            }else{
+              // si le paiement n'a pas été éffectué, on ne fait rein du tout
+              console.log("Erreur d'enregistrement du paiement ");
+            }
+
+          }
+          return true
+      }).catch(err => {
+        console.log(err)
+        return false
+      } );
+   });
+
+       /** 
+     * Utiliser pour
+     * comptabiliser les paiements éffectuer par les utilisateur 
+     * qui ont créer leur compte par le biais d'un lien de partage
+     */
+  exports.manageAccountCreatedViaInvitationUpdate = functions.firestore
+  .document('ADHERENTS/{userId}/NEW_FACTURATIONS_ADHERENT/{facturationId}')
+  .onUpdate((change, context) => { 
+
+     // Get an object representing the document
+      // e.g. {'name': 'Marie', 'age': 66}
+      const newValue = change.after.data();
+
+      // access to the userId
+      //var userId = snap.ref.parent.parent.id;
+      var userId = newValue.idAdherent;
+      console.log('UserId = '+userId); 
+
+      /* on vérifie si l'utilisateur a créer son compte à l'issue d'une invitation
+      afin de mentionner que ce dernier a effectuer le paiement
+       */
+      return db.collection("COMPTES_CREER_VIA_INVITATION")
+        .doc(userId)
+        .get()
+        .then(doc => {
+
+          // l'utilisateur a un compte créer via invitation de lien dynamique, 
+          if (!doc.exists) {
+            console.log('No such document!');
+            return true
+          } else {
+            console.log('Document data:', doc.data());
+
+
+            var isFacturationValider = newValue.etatValider
+            if(isFacturationValider){//si le paiement a été effctué
+                // on doit mentionner que ce dernier vient de faire un paiement
+                var docInfo = db.collection("COMPTES_CREER_VIA_INVITATION")
+                .doc(userId)
+
+                var docMerge = docInfo.set({
+                  firstPaiementProceded :true
+                }, { merge: true}).then(function() {
+                  console.log("Enregistrement du paiement éffectué avec succes...");
+                  return true
+                }).catch(err => {
+                  console.log(err)
+                  return false
+                });
+            }else{
+              // si le paiement n'a pas été éffectué, on ne fait rein du tout
+              console.log("Erreur d'enregistrement du paiement ");
+            }
+
+          }
+          return true
+      }).catch(err => {
+        console.log(err)
+        return false
+      } );
    });
 
 
