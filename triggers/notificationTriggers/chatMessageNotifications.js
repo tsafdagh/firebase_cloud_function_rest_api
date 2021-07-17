@@ -1,3 +1,4 @@
+const functions = require('firebase-functions');
 
 exports.chatMessagetOnWriteEven = functions
 .firestore.document("CONVERSATIONS/{conversationId}/MESSAGES/{messageId}")

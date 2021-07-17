@@ -1,3 +1,4 @@
+const functions = require('firebase-functions');
 
 exports.appointmenttOnWriteEven = functions
 .firestore.document("APPOINTMENTS/{appointmentId}")
